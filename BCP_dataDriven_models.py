@@ -11,6 +11,7 @@ Created on Mon Jul 11 10:53:21 2022
 import numpy as np
 import pandas as pd
 import time
+import os
 
 from sklearn.pipeline import make_pipeline, Pipeline
 from sklearn.preprocessing import StandardScaler,MinMaxScaler
@@ -22,9 +23,18 @@ from sklearn.neural_network import MLPRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 from mlxtend.feature_selection import SequentialFeatureSelector as SFS 
 import joblib
+import csv
 
 import BCP_DataSet as DS
 import BCP_PreProcessing as PP
+#%%
+def training_split(df,test_frac):
+    X_tot = df.iloc[:,1:]
+    Y_tot = df.iloc[:,0]
+    test_frac = 0.25    
+    X_train, X_test, Y_train, Y_test = train_test_split(X_tot,Y_tot,test_size=test_frac,
+                                                        random_state=92,shuffle=True)
+    return X_train,X_test,Y_train,Y_test
 #%%
 def best_estimator_predict(gs_results,X_train,X_test,Y_train,Y_test):
     """
@@ -118,14 +128,17 @@ def model_fit(X_train,Y_train,cv,model):
     n_features = X_train.shape[1]
     n_samples = X_train.shape[0]
     # Select a model
+    print('Hyperparameter\'s optimization for data set')
+    print('%i predictors for BC: %s'%(n_features,[i for i in X_train.columns]))
+    print('%i samples for training'%n_samples)
     
     if model=='SVR':
         print('---------------\nFitting SVR\n----------------')
         model = svm.SVR(kernel='rbf')
         grid_params = {
-            'model__C':np.logspace(-2,3,7),
-            'model__gamma':np.logspace(-2,2,5),
-            'model__epsilon':np.linspace(0.05,0.5,4)
+            'model__C':np.logspace(-3,3,7),
+            'model__gamma':np.logspace(-3,3,7),
+            'model__epsilon':np.linspace(0.1,0.8,5)
             }
         
         scaler = StandardScaler()
@@ -138,11 +151,11 @@ def model_fit(X_train,Y_train,cv,model):
                                       n_jobs=2, verbose=1, warm_start=False)
 
         grid_params = {
-            'model__n_estimators':[1000,5000],
+            'model__n_estimators':[500,1000,3000],
             'model__max_depth':[20,10,7,5,3],
             'model__min_samples_split':[5,2],
-            'model__max_samples':[1.0],
-            'model__max_features':[1.0,0.5,0.33,0.2]
+            'model__max_samples':[1.0,0.66],
+            'model__max_features':[1.0,0.5,0.33]
             }   
     
         pipe = Pipeline(steps=[('model', model)])
@@ -150,20 +163,21 @@ def model_fit(X_train,Y_train,cv,model):
 
     elif model=='MLP':
         print('-----------\nFitting MLP\n----------')
-        model = MLPRegressor(solver='sgd',learning_rate='adaptive',
-                             max_iter=2000,shuffle=True,random_state=92,warm_start=False)
+        model = MLPRegressor(solver='adam',learning_rate='adaptive',
+                             max_iter=5000,shuffle=True,random_state=92,warm_start=False)
         grid_params = {
             'model__activation':['tanh','relu'],
             'model__early_stopping':[False,True],
             'model__tol':np.logspace(-6,-2,3),
             'model__learning_rate_init':np.logspace(-4,-2,3),
-            'model__hidden_layer_sizes':[(n_features,n_features),
-                                         (n_features,n_features,n_features,n_features,n_features),
-                                         (n_features,n_features,n_features,n_features,n_features,n_features,n_features,n_features,n_features,n_features),
+            'model__hidden_layer_sizes':[(int(np.ceil(1.33*n_features)),),
+                                         (n_features,),
+                                         (int(0.5*n_features),),
+                                         (n_features,n_features),
                                          (int(0.5*n_features),int(0.5*n_features)),
-                                         (int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features),int(0.5*n_features))],
+                                         (n_features,n_features,n_features,n_features,n_features)],
             'model__alpha':np.logspace(-6,-2,3),
-            'model__batch_size': [int(0.005*n_samples),int(0.01*n_samples),int(0.02*n_samples),int(0.1*n_samples),int(0.3*n_samples),int(0.5*n_samples)]        
+            'model__batch_size': [int(0.01*n_samples),int(0.05*n_samples),int(0.1*n_samples),int(0.5*n_samples)]        
             }
         
         
@@ -173,20 +187,56 @@ def model_fit(X_train,Y_train,cv,model):
     # gridsearch
     print('Fitting model ',pipe)
     start_time = time.time()
+    
+    if model =='RF':
+        n_jobs = 2
+        pre_dispatch = 2
+    else:
+        n_jobs = 2
+        pre_dispatch = 4
+        
     gs = GridSearchCV(pipe, grid_params, scoring='neg_root_mean_squared_error',
-                      n_jobs=10, refit=True, cv=cv, verbose=1,
-                      pre_dispatch=20, return_train_score=True)
+                      n_jobs=n_jobs, refit=True, cv=cv, verbose=1,
+                      pre_dispatch=pre_dispatch, return_train_score=True)
     gs.fit(X_train,Y_train)
     end_time = time.time()
-    results = pd.DataFrame(gs.cv_results_)
-    results = results.sort_values(by='rank_test_score')
+    gs_results = pd.DataFrame(gs.cv_results_)
+    gs_results = gs_results.sort_values(by='rank_test_score')
     print('Grid search cv finished in %.2f'%(end_time-start_time))
     
-    return gs,results
+    return gs,gs_results
 
         
 
+def scoring(Y_true,y_pred,X):
+    """
+    Computes scoring metrics for predictions
 
+    Parameters
+    ----------
+    Y_true : pandas series
+            BC concentration ground truth value
+    y_pred : pandas Series
+            BC concentration estimation
+    X : pandas DataFrame
+        predictors training/or testing set
+
+    Returns
+    -------
+    RMSE : float
+            Root mean squared error
+    R2 : float
+        R2
+    adj_R2 : float
+            adjusted R2 (considers number of measurements and features)
+
+    """
+    
+    RMSE = np.sqrt(mean_squared_error(Y_true,y_pred))
+    R2 = r2_score(Y_true,y_pred)
+    adj_R2 = 1-(1-R2)*(X.shape[0]-1)/(X.shape[0]-X.shape[1]-1)
+    
+    return RMSE,R2,adj_R2
 
 #%%
 
@@ -197,7 +247,7 @@ def main(df):
     Parameters
     ----------
     df : pandas DataFrame
-        data set
+        data set with all predictors
 
     
     """
@@ -210,14 +260,37 @@ def main(df):
     gs,results = model_fit(X_train,Y_train,cv,model='MLP')
     
     
-    return gs,results
+    return gs,results,X_test,Y_test
 
-
+#%%
 if __name__ == '__main__':
     print('Testing model predictions')
     path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/1_Files/raw_data_files'
     Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = DS.load_or_create(path,load=True)
     ### -----------Pre-processing steps-----------
     dataSet = PP.pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N)
+    path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/1_Files/raw_data_files/dataFrames_files'
+    os.chdir(path)
+    print('Loading Original data set from\n %s'%path)
+    ds = pd.read_pickle('dataSet_original.pkl')
+    # gridsearch
+    gs,results,X_test,Y_test = main(ds)
+    # scoring metrics
+    y_pred = gs.predict(X_test)
+    RMSE,R2,adj_R2 = scoring(Y_test,y_pred,X_test)
+    # save results
+    path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/3_BC_Proxy/Feature_Selection/MLP'
+    os.chdir(path)
+    print('Saving Results to %s'%path)   
+    header = ['RMSE','R2','adj_R2']         
+    data = [RMSE,R2,adj_R2]
+    with open('MLP_gs_results.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerow(data)
+    print('Saving model architecture')
+    fname = 'BC_proxy_MLP_allFeatures.pkl'
+    joblib.dump(gs, fname)
 
-    gs,results = main(dataSet)
+    
+   
