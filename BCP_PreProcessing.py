@@ -13,13 +13,21 @@ Created on Mon Jun 27 11:57:07 2022
 """
 import pandas as pd
 import BCP_DataSet as DS
+import numpy as np
 #%%
 """
 Pre-processing functions
 """
 
+def bad_vals(df,pollutant):
+    """
+    Remove bad measurements (< 0)
+    """
+    print('Removing wrong measurements for '+str(pollutant)+'\n')
+    df = df[df[pollutant]>0.0]
+    return df
 
-def Time_agg(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N,time_period='10min'):
+def Time_agg(df,time_period='10min'):
     """
     Time aggregation
     Each sensor dataset has different sample frequencies:
@@ -29,39 +37,17 @@ def Time_agg(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3
       LCS Captor time frequency 1 s    
       LCS PM and UFP time frequency: 2 min
       
-    In order to estimate BC, all the predictors must have measurements
-    at the same time instant
+    In order to estimate BC, all the predictors
+    must have measurements at the same time
     
     time_period: frequency for averaging
     """
+    
     print('\n Aggregating data set every '+str(time_period))
     ### compute mean every t minutes
-    
-    ### reference station measurements
-    Ref_BC = Ref_BC.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    
-    Ref_O3 = Ref_O3.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    Ref_NO2 = Ref_NO2.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    Ref_NO = Ref_NO.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    Ref_PM10 = Ref_PM10.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    Ref_N = Ref_N.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    Ref_Meteo = Ref_Meteo.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    
-    ### lcs measurements
-    
-    LCS_O3 = LCS_O3.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_NO2 = LCS_NO2.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_NO = LCS_NO.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_Meteo = LCS_Meteo.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    
-    LCS_PM1 = LCS_PM1.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_PM25 = LCS_PM25.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_PM10 = LCS_PM10.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    LCS_N = LCS_N.groupby(pd.Grouper(key='date',freq=time_period)).mean()
-    
-    ### concat data
-    data = pd.concat([Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N],axis=1)
-    return data
+    df = df.groupby(pd.Grouper(key='date',freq=time_period)).mean()
+
+    return df
 
 
 def Time_period(df,start='2021-10-19 08:20:00',stop='2021-12-25 15:00:00',time_period='10min'):
@@ -79,23 +65,16 @@ def Time_period(df,start='2021-10-19 08:20:00',stop='2021-12-25 15:00:00',time_p
     df = df[df.index.isin(time_range)]
     return df
 
-def bad_vals(df,pollutant):
-    """
-    Remove bad measurements (< 0)
-    """
-    print('Removing wrong measurements for '+str(pollutant)+'\n')
-    df = df[df[pollutant]>0.0]
-    return df
-
-    
-    
 
     
 
 #%%
 def pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N,time_period = '10min'):
     """
-    Aggregate data sets every t minutes and keep relevant time period
+    pre processing step
+    1. delete wrong measurements
+    2. time aggregation (mean)
+    3. keep relevant time period
 
     Parameters
     ----------
@@ -134,11 +113,12 @@ def pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, 
 
     Returns
     -------
-    df : pandas DataFrame
-        aggregated data set for the relvant time period.
+    All data frames
 
     """
     ### remove wrong values
+    
+    # for reference station measurements
     Ref_BC = bad_vals(Ref_BC,Ref_BC.columns[1])
     Ref_O3 = bad_vals(Ref_O3,Ref_O3.columns[1])
     Ref_NO2 = bad_vals(Ref_NO2,Ref_NO2.columns[1])
@@ -146,22 +126,32 @@ def pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, 
     Ref_PM10 = bad_vals(Ref_PM10,Ref_PM10.columns[1])
     Ref_Meteo = bad_vals(Ref_Meteo,Ref_Meteo.columns[1])
     Ref_Meteo = bad_vals(Ref_Meteo,Ref_Meteo.columns[2])
-    
+    # for LCS internal Temperature and RH
     LCS_Meteo = bad_vals(LCS_Meteo,LCS_Meteo.columns[1])
     LCS_Meteo = bad_vals(LCS_Meteo,LCS_Meteo.columns[2])
-    
+    # for LCS PM and UFP    
     LCS_PM1 = bad_vals(LCS_PM1,LCS_PM1.columns[1])
     LCS_PM25 = bad_vals(LCS_PM25,LCS_PM25.columns[1])
     LCS_PM10 = bad_vals(LCS_PM10,LCS_PM10.columns[1])
     LCS_N = bad_vals(LCS_N,LCS_N.columns[1])
     
-    
     ### Time average    
-    df = Time_agg(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N,time_period=time_period)
+    # average data set every 10 min: lowest frequency
+    #Ref_BC,Ref_O3,Ref_NO2,Ref_NO,Ref_PM10,Ref_N,Ref_Meteo,LCS_O3,LCS_NO2,LCS_NO,LCS_Meteo,LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = Time_agg(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N,time_period=time_period)
+    
     ### Relevant dates
-    df = Time_period(df,time_period=time_period)
+    #df = Time_period(df,time_period=time_period)
+    
+    ### separate LCS and Ref. Station data sets
+    #df_ref = df.iloc[:,0:8]
+    #df_lcs = df.iloc[:,np.r_[0,6:df.shape[1]]]
+    
+    ### remove NaN
+    #df_ref.dropna(inplace=True)
+    #df_lcs.dropna(inplace=True)
+    
     print('Pre-processing finished')
-    return df
+    return Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N
 #%%
 def main():
     """
@@ -174,14 +164,18 @@ def main():
         the relevant time period
 
     """
+    ######################
+    #-- Previous modules--
+    ######################
     ### directory where pkl raw data set files are located
     path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/1_Files/raw_data_files'
-    ### load dataset    
-    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = DS.load_or_create(path,load=True)
-    ### pre-processing step`
-    df = pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N)
+    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = DS.load_dataSets(path)
+    ######################
+    #-pre-processing step-
+    ######################
+    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = pre_processing(Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N)
     
-    return df
+    return Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N
 
 if __name__ == '__main__':
-    df = main()
+    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = main()

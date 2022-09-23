@@ -491,7 +491,7 @@ def load_pkl(path,pollutant):
         file path
         
     pollutant: str
-        pollutant name to load
+        pollutant name to load without extension
         
     Returns
     -------
@@ -506,58 +506,86 @@ def load_pkl(path,pollutant):
     df = pd.read_pickle(fname)
        
     return df
+#%%
 
-
-def load_or_create(path,load=True):
+def create_dataSets(path):
     """
-    Create and save data frames from csv files
-    or load existing files
+    Create and save data sets from csv files.
+    The created data frames can be loaded by load_dataSets() function
 
     Parameters
     ----------
     path: str
         directory for loading
-        
-    load: bool, optional. Default True
+
+    Returns
+    -------
+    Pandas data sets
+
+    """
+    ### read csv files and save data frames
+    
+    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = Load_Pollutants_csv(path)
+    ### saving created data frames
+    save_df(path,Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N)
+
+    return Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N
+
+
+
+def load_dataSets(path):
+    """
+    Loads data set from csv files
+    The files are inside the folder: "dataFrame_files"
+
+    Parameters
+    ----------
+    path : str
+        path to data set folder
 
     Returns
     -------
     None.
 
     """
-    ### load data frames
     df = []
-    if load:
-        path = path + '/dataFrames_files'
-        pollutants = ['Ref_BC', 'Ref_O3', 'Ref_NO2', 'Ref_NO', 
-                      'Ref_PM10', 'Ref_N', 'Ref_Meteo', 
-                      'LCS_O3', 'LCS_NO2', 'LCS_NO', 'LCS_Meteo',
-                      'LCS_PM1','LCS_PM25','LCS_PM10','LCS_N']       
-        for p in pollutants:
-            df.append(load_pkl(path, p))
-        
-        Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N  = [df[i] for i in range(0,len(df))] 
-    ### read csv files and save data frames
-    else:
-        Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = Load_Pollutants_csv(path)
-        ### saving created data frames
-        save_df(path,Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N)
-        
-        
+    path = path + '/dataFrames_files'
+    pollutants = ['Ref_BC', 'Ref_O3', 'Ref_NO2', 'Ref_NO', 'Ref_PM10', 'Ref_N', 'Ref_Meteo', 
+                  'LCS_O3', 'LCS_NO2', 'LCS_NO','LCS_Meteo',
+                  'LCS_PM1','LCS_PM25','LCS_PM10','LCS_N']
+    for p in pollutants:
+        df.append(load_pkl(path, p))
+    
+    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N  = [df[i] for i in range(0,len(df))] 
     
     return Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N
-
+        
+    
+    
+    
+    
+    
+    
     
 #%% main
 def main():
     """
-    test files loading
+    test data sets cration and loading
+    create bool controls either the creation from csv files or loading dataFrames saved as .pkl files
     """
-    path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/1_Files/raw_data_files'
-    print('Testing .csv files loading and dataFrames creation')
-    ### set load==True if pkl files already exist. False otherwise
-    Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = load_or_create(path,load=False)
     
+    path = '/home/jparedes/Documents/PhD/Files/Data/Proxy_LCS/1_Files/raw_data_files'
+    os.chdir(path)
+    print('Changing directory to %s'%path)
+    create = False
+    
+    if create:
+        print('Testing .csv files loading and dataFrames creation')
+        Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = create_dataSets(path)
+    else:
+        Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N = load_dataSets(path)
+        
+        
     return Ref_BC, Ref_O3, Ref_NO2, Ref_NO, Ref_PM10, Ref_N, Ref_Meteo, LCS_O3, LCS_NO2, LCS_NO, LCS_Meteo, LCS_PM1,LCS_PM25,LCS_PM10,LCS_N
 
 if __name__=='__main__':
